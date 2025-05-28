@@ -65,6 +65,18 @@
         "title": "Gittron: Resolve Comment from Hover",
         "icon": "$(check)",
         "category": "Gittron"
+      },
+      {
+        "command": "gittron.replyToComment",
+        "title": "Gittron: Reply to Comment",
+        "icon": "$(reply)",
+        "category": "Gittron"
+      },
+      {
+        "command": "gittron.replyToCommentFromHover",
+        "title": "Gittron: Reply to Comment from Hover",
+        "icon": "$(reply)",
+        "category": "Gittron"
       }
     ],
     "configuration": {
@@ -125,6 +137,11 @@
       "view/item/context": [
         {
           "command": "gittron.resolveComment",
+          "when": "view == gittronComments && viewItem == prComment",
+          "group": "inline"
+        },
+        {
+          "command": "gittron.replyToComment",
           "when": "view == gittronComments && viewItem == prComment",
           "group": "inline"
         }

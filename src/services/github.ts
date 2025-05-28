@@ -271,4 +271,68 @@ export class GitHubService {
       return false;
     }
   }
+
+  public async replyToComment(
+    owner: string, 
+    repo: string, 
+    pullNumber: number, 
+    commentId: number, 
+    replyBody: string
+  ): Promise<PullRequestComment | null> {
+    try {
+      const headers = this.getAuthHeaders();
+      headers['Content-Type'] = 'application/json';
+
+      // First, get the original comment to find its position and path
+      const originalCommentResponse = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/pulls/comments/${commentId}`,
+        { headers }
+      );
+
+      if (!originalCommentResponse.ok) {
+        throw new Error(`Failed to fetch original comment: ${originalCommentResponse.status} ${originalCommentResponse.statusText}`);
+      }
+
+      const originalComment = await originalCommentResponse.json();
+
+      // Create a reply comment
+      const replyData = {
+        body: replyBody,
+        in_reply_to: commentId
+      };
+
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/comments`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(replyData)
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`GitHub API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const replyComment: any = await response.json();
+
+      return {
+        id: replyComment.id,
+        body: replyComment.body || '',
+        user: {
+          login: replyComment.user?.login || 'unknown'
+        },
+        path: replyComment.path,
+        line: replyComment.line || replyComment.original_line,
+        position: replyComment.position || replyComment.original_position,
+        created_at: replyComment.created_at,
+        html_url: replyComment.html_url,
+        resolved: false
+      };
+    } catch (error) {
+      console.error('Error replying to comment:', error);
+      throw error;
+    }
+  }
 } 

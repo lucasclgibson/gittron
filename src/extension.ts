@@ -21,11 +21,11 @@ let currentPRInfo: CurrentPRInfo | undefined;
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-	const githubService = new GitHubService();
-	const gitService = new GitService();
-	const commentsProvider = new CommentsProvider();
+  const githubService = new GitHubService();
+  const gitService = new GitService();
+  const commentsProvider = new CommentsProvider();
   const commentsTreeView = vscode.window.createTreeView("gittronComments", {
-		treeDataProvider: commentsProvider,
+    treeDataProvider: commentsProvider,
     showCollapseAll: true,
   });
 
@@ -75,17 +75,22 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Add button to copy as agent instruction
         markdown.appendMarkdown(
-          `\n\n<a href="command:gittron.copyAsAgentInstruction">📋 Copy as Agent Instruction</a>`
+          `\n\n<a href="command:gittron.copyAsAgentInstruction">📋 Copy Instruction</a>`
         );
 
         // Add button to add to AI chat
         markdown.appendMarkdown(
-          `  <a href="command:gittron.addToAIChat">💬 Add to AI Chat</a>`
+          `  <a href="command:gittron.addToAIChat">💬 Add to Chat</a>`
+        );
+
+        // Add button to reply to comment
+        markdown.appendMarkdown(
+          `  <a href="command:gittron.replyToCommentFromHover">💬 Reply</a>`
         );
 
         // Add button to resolve comment
         markdown.appendMarkdown(
-          `  <a href="command:gittron.resolveCommentFromHover">✅ Resolve Comment</a>`
+          `  <a href="command:gittron.resolveCommentFromHover">✅ Resolve</a>`
         );
 
         return new vscode.Hover(markdown);
@@ -101,19 +106,19 @@ export function activate(context: vscode.ExtensionContext) {
   // Helper function to refresh PR comments
   async function refreshComments(forceNewPR: boolean = false): Promise<void> {
     if (!currentPRInfo || forceNewPR) {
-			try {
+      try {
         await vscode.window.withProgress(
           {
-					location: vscode.ProgressLocation.Notification,
+            location: vscode.ProgressLocation.Notification,
             title: "Fetching PR comments...",
             cancellable: false,
           },
           async (progress) => {
-					const repoInfo = await gitService.getRepositoryInfo();
+            const repoInfo = await gitService.getRepositoryInfo();
             progress.report({
               message: `Detected repository: ${repoInfo.owner}/${repoInfo.name}`,
             });
-					
+
             let prNumber: number | null = null;
             try {
               prNumber = await gitService.getCurrentPullRequest();
@@ -139,7 +144,7 @@ export function activate(context: vscode.ExtensionContext) {
               }
             }
 
-					if (!prNumber) {
+            if (!prNumber) {
               throw new Error("Could not determine PR number");
             }
 
@@ -152,20 +157,20 @@ export function activate(context: vscode.ExtensionContext) {
             progress.report({
               message: `Getting unresolved comments for PR #${prNumber}`,
             });
-					
-					const comments = await githubService.getPullRequestComments(
-						repoInfo.owner,
-						repoInfo.name,
+
+            const comments = await githubService.getPullRequestComments(
+              repoInfo.owner,
+              repoInfo.name,
               prNumber
-					);
-					
-					commentsProvider.refresh(comments);
+            );
+
+            commentsProvider.refresh(comments);
             commentsProvider.setPRInfo(repoInfo.owner, repoInfo.name, prNumber);
-					
-					return comments;
+
+            return comments;
           }
         );
-				
+
         vscode.window.showInformationMessage(
           "PR comments fetched successfully."
         );
@@ -188,7 +193,9 @@ export function activate(context: vscode.ExtensionContext) {
           },
           async (progress) => {
             progress.report({
-              message: `Getting unresolved comments for PR #${currentPRInfo!.number}`,
+              message: `Getting unresolved comments for PR #${
+                currentPRInfo!.number
+              }`,
             });
 
             const comments = await githubService.getPullRequestComments(
@@ -213,12 +220,12 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(
           "PR comments refreshed successfully."
         );
-			} catch (error) {
-				if (error instanceof Error) {
+      } catch (error) {
+        if (error instanceof Error) {
           vscode.window.showErrorMessage(
             `Error refreshing PR comments: ${error.message}`
           );
-				} else {
+        } else {
           vscode.window.showErrorMessage(
             "Unknown error refreshing PR comments"
           );
@@ -269,9 +276,6 @@ ${activeCommentLine.trim()}
 
 Comment by @${activeComment.user.login}:
 ${activeComment.body}
-
-Instructions:
-
 `;
 
           await vscode.env.clipboard.writeText(instruction);
@@ -301,9 +305,6 @@ ${activeCommentLine.trim()}
 
 Comment by @${activeComment.user.login}:
 ${activeComment.body}
-
-Instructions:
-
 `;
 
         const originalClipboard = await vscode.env.clipboard.readText();
@@ -411,7 +412,11 @@ Instructions:
             console.error("Error opening file:", error);
 
             const doc = await vscode.workspace.openTextDocument({
-              content: `# Comment by @${comment.user.login} on ${comment.path}:${comment.line || comment.position}\n\n${comment.body}\n\n[View on GitHub](${comment.html_url})`,
+              content: `# Comment by @${comment.user.login} on ${
+                comment.path
+              }:${comment.line || comment.position}\n\n${
+                comment.body
+              }\n\n[View on GitHub](${comment.html_url})`,
               language: "markdown",
             });
 
@@ -423,7 +428,7 @@ Instructions:
             content: `# Comment by @${comment.user.login}\n\n${comment.body}\n\n[View on GitHub](${comment.html_url})`,
             language: "markdown",
           });
-          
+
           await vscode.window.showTextDocument(doc);
         }
       }
@@ -438,7 +443,9 @@ Instructions:
         }
 
         if (!currentPRInfo) {
-          vscode.window.showErrorMessage("No PR information available. Please fetch PR comments first.");
+          vscode.window.showErrorMessage(
+            "No PR information available. Please fetch PR comments first."
+          );
           return;
         }
 
@@ -463,7 +470,7 @@ Instructions:
                 vscode.window.showInformationMessage(
                   `Comment by @${comment.user.login} has been resolved`
                 );
-                
+
                 progress.report({ message: "Refreshing comments..." });
                 await refreshComments();
               } else {
@@ -493,7 +500,9 @@ Instructions:
         }
 
         if (!currentPRInfo) {
-          vscode.window.showErrorMessage("No PR information available. Please fetch PR comments first.");
+          vscode.window.showErrorMessage(
+            "No PR information available. Please fetch PR comments first."
+          );
           return;
         }
 
@@ -518,13 +527,13 @@ Instructions:
                 vscode.window.showInformationMessage(
                   `Comment by @${comment.user.login} has been resolved`
                 );
-                
+
                 activeComment = undefined;
                 if (activeCommentDecoration) {
                   activeCommentDecoration.dispose();
                   activeCommentDecoration = undefined;
                 }
-                
+
                 progress.report({ message: "Refreshing comments..." });
                 await refreshComments();
               } else {
@@ -544,11 +553,151 @@ Instructions:
         }
       }
     ),
-	];
-	
-	context.subscriptions.push(...commands, commentsTreeView);
-	
-	context.subscriptions.push(
+
+    vscode.commands.registerCommand(
+      "gittron.replyToComment",
+      async (commentItem: CommentItem) => {
+        if (!commentItem || !commentItem.comment) {
+          vscode.window.showErrorMessage("No comment selected to reply to");
+          return;
+        }
+
+        if (!currentPRInfo) {
+          vscode.window.showErrorMessage(
+            "No PR information available. Please fetch PR comments first."
+          );
+          return;
+        }
+
+        const comment = commentItem.comment;
+
+        const replyText = await vscode.window.showInputBox({
+          prompt: `Reply to comment by @${comment.user.login}`,
+          placeHolder: "Enter your reply...",
+          validateInput: (input) => {
+            return input.trim().length === 0 ? "Reply cannot be empty" : null;
+          },
+        });
+
+        if (!replyText) {
+          return;
+        }
+
+        try {
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `Replying to comment by @${comment.user.login}...`,
+              cancellable: false,
+            },
+            async (progress) => {
+              const replyComment = await githubService.replyToComment(
+                currentPRInfo!.owner,
+                currentPRInfo!.repo,
+                currentPRInfo!.number,
+                comment.id,
+                replyText.trim()
+              );
+
+              if (replyComment) {
+                vscode.window.showInformationMessage(
+                  `Reply posted to comment by @${comment.user.login}`
+                );
+
+                progress.report({ message: "Refreshing comments..." });
+                await refreshComments();
+              } else {
+                throw new Error("Failed to post reply");
+              }
+            }
+          );
+        } catch (error) {
+          console.error("Error replying to comment:", error);
+          if (error instanceof Error) {
+            vscode.window.showErrorMessage(
+              `Error replying to comment: ${error.message}`
+            );
+          } else {
+            vscode.window.showErrorMessage("Unknown error replying to comment");
+          }
+        }
+      }
+    ),
+
+    vscode.commands.registerCommand(
+      "gittron.replyToCommentFromHover",
+      async () => {
+        if (!activeComment) {
+          vscode.window.showErrorMessage("No active comment to reply to");
+          return;
+        }
+
+        if (!currentPRInfo) {
+          vscode.window.showErrorMessage(
+            "No PR information available. Please fetch PR comments first."
+          );
+          return;
+        }
+
+        const comment = activeComment;
+
+        const replyText = await vscode.window.showInputBox({
+          prompt: `Reply to comment by @${comment.user.login}`,
+          placeHolder: "Enter your reply...",
+          validateInput: (input) => {
+            return input.trim().length === 0 ? "Reply cannot be empty" : null;
+          },
+        });
+
+        if (!replyText) {
+          return;
+        }
+
+        try {
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `Replying to comment by @${comment.user.login}...`,
+              cancellable: false,
+            },
+            async (progress) => {
+              const replyComment = await githubService.replyToComment(
+                currentPRInfo!.owner,
+                currentPRInfo!.repo,
+                currentPRInfo!.number,
+                comment.id,
+                replyText.trim()
+              );
+
+              if (replyComment) {
+                vscode.window.showInformationMessage(
+                  `Reply posted to comment by @${comment.user.login}`
+                );
+
+                progress.report({ message: "Refreshing comments..." });
+                await refreshComments();
+              } else {
+                throw new Error("Failed to post reply");
+              }
+            }
+          );
+        } catch (error) {
+          console.error("Error replying to comment from hover:", error);
+          if (error instanceof Error) {
+            vscode.window.showErrorMessage(
+              `Error replying to comment: ${error.message}`
+            );
+          } else {
+            vscode.window.showErrorMessage("Unknown error replying to comment");
+          }
+        }
+      }
+    ),
+  ];
+
+  context.subscriptions.push(...commands, commentsTreeView);
+
+  context.subscriptions.push(
     vscode.window.registerTreeDataProvider("gittronComments", commentsProvider)
   );
 }
