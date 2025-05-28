@@ -110,20 +110,17 @@ export function activate(context: vscode.ExtensionContext) {
 
             // Add comment body
             markdown.appendMarkdown(`${comment.body}\n\n`);
-
-            // Add action buttons for each comment
             markdown.appendMarkdown(
-              `<a href="command:gittron.copyAsAgentInstruction?${encodeURIComponent(JSON.stringify([comment]))}">📋</a> `
+              `<a href="command:gittron.addToAIChat?${encodeURIComponent(JSON.stringify([comment]))}">💬 Add to Chat</a>`
             );
+            markdown.appendMarkdown(`&nbsp;&nbsp;&nbsp;&nbsp;`);
             markdown.appendMarkdown(
-              `<a href="command:gittron.addToAIChat?${encodeURIComponent(JSON.stringify([comment]))}">💬</a> `
+              `<a href="command:gittron.replyToCommentFromHover?${encodeURIComponent(JSON.stringify([comment]))}">↩️ Reply</a>`
             );
-            markdown.appendMarkdown(
-              `<a href="command:gittron.replyToCommentFromHover?${encodeURIComponent(JSON.stringify([comment]))}">↩️</a> `
-            );
+            markdown.appendMarkdown(`&nbsp;&nbsp;&nbsp;&nbsp;`);
             if (index === threadComments.length - 1) {
               markdown.appendMarkdown(
-                `<a href="command:gittron.resolveCommentFromHover?${encodeURIComponent(JSON.stringify([comment]))}">✅</a>`
+                `<a href="command:gittron.resolveCommentFromHover?${encodeURIComponent(JSON.stringify([comment]))}">✅ Resolve</a>`
               );
             }
           });
@@ -133,8 +130,9 @@ export function activate(context: vscode.ExtensionContext) {
           markdown.appendMarkdown(
             `<a href="command:gittron.replyToCommentFromHover">💬 Reply to Thread</a>`
           );
+          markdown.appendMarkdown(`&nbsp;&nbsp;&nbsp;&nbsp;`);
           markdown.appendMarkdown(
-            `  <a href="command:gittron.resolveCommentFromHover">✅ Resolve Thread</a>`
+            `<a href="command:gittron.resolveCommentFromHover">✅ Resolve Thread</a>`
           );
         } else {
           // Single comment view
@@ -146,16 +144,15 @@ export function activate(context: vscode.ExtensionContext) {
           // Add action buttons
           markdown.appendMarkdown('\n\n---\n\n');
           markdown.appendMarkdown(
-            `<a href="command:gittron.copyAsAgentInstruction">📋 Copy</a>`
-          );
-          markdown.appendMarkdown(
             `  <a href="command:gittron.addToAIChat">💬 Add to Chat</a>`
           );
+          markdown.appendMarkdown(`&nbsp;&nbsp;&nbsp;&nbsp;`);
           markdown.appendMarkdown(
-            `  <a href="command:gittron.replyToCommentFromHover">↩️ Reply</a>`
+            `<a href="command:gittron.replyToCommentFromHover">↩️ Reply</a>`
           );
+          markdown.appendMarkdown(`&nbsp;&nbsp;&nbsp;&nbsp;`);
           markdown.appendMarkdown(
-            `  <a href="command:gittron.resolveCommentFromHover">✅ Resolve</a>`
+            `<a href="command:gittron.resolveCommentFromHover">✅ Resolve</a>`
           );
         }
 
