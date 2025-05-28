@@ -63,6 +63,12 @@
         "title": "Gittron: Copy as Agent Instruction",
         "icon": "$(clippy)",
         "category": "Gittron"
+      },
+      {
+        "command": "gittron.addToAIChat",
+        "title": "Gittron: Add to AI Chat",
+        "icon": "$(comment-discussion)",
+        "category": "Gittron"
       }
     ],
     "configuration": {
@@ -131,6 +137,9 @@
         },
         {
           "command": "gittron.refreshComments"
+        },
+        {
+          "command": "gittron.addToAIChat"
         }
       ]
     },
