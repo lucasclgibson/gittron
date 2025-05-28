@@ -15,9 +15,9 @@ Gittron is a VS Code extension that streamlines your pull request review workflo
 - Automatic line highlighting with hover tooltips showing comment details
 
 ### 🔍 **Intelligent Filtering**
-- Toggle between showing all comments or only unresolved comments
+- Automatically shows only unresolved comments to focus on actionable feedback
 - Focus on file-related comments only (excludes general PR discussion)
-- Real-time status updates showing comment counts and resolution status
+- Real-time status updates showing comment counts
 
 ### 🤖 **AI Agent Integration**
 - Copy any comment as a formatted AI agent instruction
@@ -67,8 +67,8 @@ Gittron is a VS Code extension that streamlines your pull request review workflo
    - Hover over highlighted lines to see comment details
 
 4. **Filter comments** as needed:
-   - Use `Gittron: Toggle Resolved Comments` to show/hide resolved comments
-   - Status bar shows current filter state and comment counts
+   - The extension automatically shows only unresolved comments to focus on actionable feedback
+   - Status bar shows current comment counts
 
 5. **Copy for AI assistance**:
    - Hover over a commented line
@@ -81,7 +81,6 @@ Gittron is a VS Code extension that streamlines your pull request review workflo
 |---------|------------------|-------------|
 | `Gittron: Focus PR Comments` | `Cmd+Shift+G P` | Fetch and display PR comments |
 | `Gittron: Set GitHub Token` | `Cmd+Shift+G T` | Configure your GitHub token |
-| `Gittron: Toggle Resolved Comments` | - | Show/hide resolved comments |
 | `Gittron: Refresh Comments` | - | Refresh current PR comments |
 | `Gittron: Copy as Agent Instruction` | - | Copy comment as AI instruction |
 
@@ -97,9 +96,7 @@ The **Gittron Comments** panel shows:
 
 The status bar displays:
 - Current PR number
-- Total comment count
-- Resolved vs unresolved breakdown
-- Filter status
+- Total unresolved comment count
 
 ## 🎨 UI Elements
 
@@ -133,7 +130,8 @@ Instructions:
 The extension supports these VS Code settings:
 
 - `gittron.githubToken`: Your GitHub Personal Access Token (set via command)
-- `gittron.includeResolvedComments`: Whether to show resolved comments (toggled via command)
+
+**Note:** The extension automatically shows only unresolved comments to focus on actionable feedback.
 
 ## 🔧 Troubleshooting
 
@@ -149,7 +147,7 @@ The extension supports these VS Code settings:
 
 **"No file comments found"**
 - Verify the PR has comments on specific code lines (not just general discussion)
-- Check that comments aren't all resolved (toggle resolved comments to see all)
+- Check that the comments are unresolved (the extension only shows unresolved comments)
 
 **Missing recent comments**
 - Use the refresh button to get the latest comments
@@ -183,12 +181,14 @@ npm run compile
 
 [Add your license information here]
 
-## 🙏 Acknowledgments
+## 🛠️ **Built With**
 
-Built with:
-- [VS Code Extension API](https://code.visualstudio.com/api)
-- [Octokit](https://github.com/octokit/octokit.js) for GitHub API integration
-- [TypeScript](https://www.typescriptlang.com/) for type safety
+- [VS Code Extension API](https://code.visualstudio.com/api) for editor integration
+- [GitHub REST API](https://docs.github.com/en/rest) for fetching PR data
+- [GitHub GraphQL API](https://docs.github.com/en/graphql) for accurate resolution detection
+- [Simple Git](https://github.com/steveukx/git-js) for Git operations
+- [TypeScript](https://www.typescriptlang.org/) for type safety
+- [Webpack](https://webpack.js.org/) for bundling
 
 ---
 

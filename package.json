@@ -20,7 +20,6 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onCommand:gittron.helloWorld",
     "onCommand:gittron.fetchPRComments",
     "onCommand:gittron.setGitHubToken",
     "onView:gittronComments"
@@ -28,12 +27,6 @@
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
-      {
-        "command": "gittron.helloWorld",
-        "title": "Gittron: Hello World",
-        "icon": "$(globe)",
-        "category": "Gittron"
-      },
       {
         "command": "gittron.fetchPRComments",
         "title": "Gittron: Fetch PR Comments",
@@ -44,12 +37,6 @@
         "command": "gittron.setGitHubToken",
         "title": "Gittron: Set GitHub Token",
         "icon": "$(key)",
-        "category": "Gittron"
-      },
-      {
-        "command": "gittron.toggleResolvedComments",
-        "title": "Gittron: Toggle Resolved Comments",
-        "icon": "$(eye)",
         "category": "Gittron"
       },
       {
@@ -78,11 +65,6 @@
           "type": "string",
           "default": "",
           "description": "GitHub Personal Access Token"
-        },
-        "gittron.includeResolvedComments": {
-          "type": "boolean",
-          "default": false,
-          "description": "Include resolved comments when fetching PR comments"
         }
       }
     },
@@ -112,28 +94,17 @@
           "group": "navigation@1"
         },
         {
-          "command": "gittron.toggleResolvedComments",
-          "when": "view == gittronComments",
-          "group": "navigation@2"
-        },
-        {
           "command": "gittron.setGitHubToken",
           "when": "view == gittronComments",
-          "group": "navigation@3"
+          "group": "navigation@2"
         }
       ],
       "commandPalette": [
-        {
-          "command": "gittron.helloWorld"
-        },
         {
           "command": "gittron.fetchPRComments"
         },
         {
           "command": "gittron.setGitHubToken"
-        },
-        {
-          "command": "gittron.toggleResolvedComments"
         },
         {
           "command": "gittron.refreshComments"
@@ -184,7 +155,6 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "@octokit/rest": "^18.12.0",
     "axios": "^1.9.0",
     "simple-git": "^3.23.0"
   }

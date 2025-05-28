@@ -103,10 +103,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(hoverProvider);
 
   // Helper function to refresh PR comments
-  async function refreshComments(
-    includeResolved: boolean = false,
-    forceNewPR: boolean = false
-  ): Promise<void> {
+  async function refreshComments(forceNewPR: boolean = false): Promise<void> {
     if (!currentPRInfo || forceNewPR) {
       // If no PR info or forcing new PR, perform a full fetch like gittron.fetchPRComments
       console.log("No current PR info or forcing new PR fetch");
@@ -168,17 +165,14 @@ export function activate(context: vscode.ExtensionContext) {
             };
 
             progress.report({
-              message: `Getting ${
-                includeResolved ? "all" : "unresolved"
-              } comments for PR #${prNumber}`,
+              message: `Getting unresolved comments for PR #${prNumber}`,
             });
 					
-					// Fetch comments from GitHub
+					// Fetch comments from GitHub (always unresolved only)
 					const comments = await githubService.getPullRequestComments(
 						repoInfo.owner,
 						repoInfo.name,
-              prNumber,
-              includeResolved
+              prNumber
 					);
 					
 					// Update UI
@@ -190,7 +184,7 @@ export function activate(context: vscode.ExtensionContext) {
 					return comments;
           }
         );
-
+				
         vscode.window.showInformationMessage(
           "PR comments fetched successfully."
         );
@@ -214,17 +208,14 @@ export function activate(context: vscode.ExtensionContext) {
           },
           async (progress) => {
             progress.report({
-              message: `Getting ${
-                includeResolved ? "all" : "unresolved"
-              } comments for PR #${currentPRInfo!.number}`,
+              message: `Getting unresolved comments for PR #${currentPRInfo!.number}`,
             });
 
-            // Fetch comments from GitHub
+            // Fetch comments from GitHub (always unresolved only)
             const comments = await githubService.getPullRequestComments(
               currentPRInfo!.owner,
               currentPRInfo!.repo,
-              currentPRInfo!.number,
-              includeResolved
+              currentPRInfo!.number
             );
 
             // Update UI
@@ -285,15 +276,10 @@ export function activate(context: vscode.ExtensionContext) {
   console.log("Set GitHub Token command registered");
 
   const commands = [
-    vscode.commands.registerCommand("gittron.helloWorld", () => {
-      console.log("Hello World command executed");
-      vscode.window.showInformationMessage("Hello World from Gittron!");
-    }),
-
     vscode.commands.registerCommand("gittron.fetchPRComments", async () => {
       console.log("Fetch PR Comments command executed");
       // Use the enhanced refreshComments with forceNewPR=true
-      await refreshComments(false, true);
+      await refreshComments(true);
     }),
 
     vscode.commands.registerCommand(
@@ -384,52 +370,16 @@ Instructions:
       }
     }),
 
-    vscode.commands.registerCommand(
-      "gittron.toggleResolvedComments",
-      async () => {
-        console.log("Toggle Resolved Comments command executed");
-
-        if (!currentPRInfo) {
-          vscode.window.showWarningMessage(
-            "No PR information available. Please fetch PR comments first."
-          );
-          return;
-        }
-
-        // Get current configuration
-        const config = vscode.workspace.getConfiguration("gittron");
-        const includeResolved = config.get("includeResolvedComments", false);
-
-        // Toggle the setting
-        await config.update(
-          "includeResolvedComments",
-          !includeResolved,
-          vscode.ConfigurationTarget.Global
-        );
-
-        // Refresh comments with new setting
-        await refreshComments(!includeResolved);
-
-        vscode.window.showInformationMessage(
-          `Now showing ${!includeResolved ? "all" : "only unresolved"} comments`
-        );
-      }
-    ),
-
     vscode.commands.registerCommand("gittron.refreshComments", async () => {
       console.log("Refresh Comments command executed");
-
-      // Get current configuration
-      const config = vscode.workspace.getConfiguration("gittron");
-      const includeResolved = config.get("includeResolvedComments", false);
 
       // Check if there's a PR already loaded
       if (!currentPRInfo) {
         // If no PR loaded, treat like fetchPRComments
-        await refreshComments(includeResolved, true);
+        await refreshComments(true);
       } else {
         // Refresh existing PR
-        await refreshComments(includeResolved);
+        await refreshComments();
       }
     }),
 
