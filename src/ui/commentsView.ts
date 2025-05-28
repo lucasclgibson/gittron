@@ -23,7 +23,7 @@ export class CommentItem extends vscode.TreeItem {
       this.iconPath = new vscode.ThemeIcon('file-code');
     } else {
       // General PR comment - show just the user and date
-      this.description = `@${comment.user.login} - ${new Date(comment.created_at).toLocaleString()}`;
+    this.description = `@${comment.user.login} - ${new Date(comment.created_at).toLocaleString()}`;
       this.iconPath = new vscode.ThemeIcon('comment');
     }
     

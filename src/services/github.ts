@@ -24,8 +24,8 @@ export class GitHubService {
     }
     
     return new Octokit({
-      auth: token
-    });
+        auth: token
+      });
   }
 
   public setToken(token: string) {
@@ -150,16 +150,16 @@ export class GitHubService {
             console.log(`File comment ${comment.id} - Path: ${comment.path}, Line: ${comment.line}, Position: ${comment.position}, Resolved: ${isResolved}, Created: ${comment.created_at}`);
             
             return {
-              id: comment.id,
-              body: comment.body || '',
-              user: {
-                login: comment.user?.login || 'unknown'
-              },
-              path: comment.path,
+          id: comment.id,
+          body: comment.body || '',
+          user: {
+            login: comment.user?.login || 'unknown'
+          },
+          path: comment.path,
               // GitHub API may provide different line/position properties, try to get the correct one
               line: comment.line || (comment as any).original_line,
               position: comment.position || (comment as any).original_position,
-              created_at: comment.created_at,
+          created_at: comment.created_at,
               html_url: comment.html_url,
               resolved: isResolved
             };

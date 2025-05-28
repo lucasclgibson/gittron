@@ -23,16 +23,16 @@ let currentPRInfo: CurrentPRInfo | undefined;
 export function activate(context: vscode.ExtensionContext) {
   console.log("Activating Gittron extension");
 
-  // Initialize services
-  const githubService = new GitHubService();
-  const gitService = new GitService();
-
+	// Initialize services
+	const githubService = new GitHubService();
+	const gitService = new GitService();
+	
   console.log("Services initialized");
-
-  // Initialize UI components
-  const commentsProvider = new CommentsProvider();
+	
+	// Initialize UI components
+	const commentsProvider = new CommentsProvider();
   const commentsTreeView = vscode.window.createTreeView("gittronComments", {
-    treeDataProvider: commentsProvider,
+		treeDataProvider: commentsProvider,
     showCollapseAll: true,
   });
 
@@ -110,22 +110,22 @@ export function activate(context: vscode.ExtensionContext) {
     if (!currentPRInfo || forceNewPR) {
       // If no PR info or forcing new PR, perform a full fetch like gittron.fetchPRComments
       console.log("No current PR info or forcing new PR fetch");
-      try {
-        // Show progress indicator
+			try {
+				// Show progress indicator
         await vscode.window.withProgress(
           {
-            location: vscode.ProgressLocation.Notification,
+					location: vscode.ProgressLocation.Notification,
             title: "Fetching PR comments...",
             cancellable: false,
           },
           async (progress) => {
-            // Get repository info
-            const repoInfo = await gitService.getRepositoryInfo();
+					// Get repository info
+					const repoInfo = await gitService.getRepositoryInfo();
             progress.report({
               message: `Detected repository: ${repoInfo.owner}/${repoInfo.name}`,
             });
-
-            // Get PR number from current branch
+					
+					// Get PR number from current branch
             let prNumber: number | null = null;
             try {
               prNumber = await gitService.getCurrentPullRequest();
@@ -156,7 +156,7 @@ export function activate(context: vscode.ExtensionContext) {
               }
             }
 
-            if (!prNumber) {
+					if (!prNumber) {
               throw new Error("Could not determine PR number");
             }
 
@@ -172,22 +172,22 @@ export function activate(context: vscode.ExtensionContext) {
                 includeResolved ? "all" : "unresolved"
               } comments for PR #${prNumber}`,
             });
-
-            // Fetch comments from GitHub
-            const comments = await githubService.getPullRequestComments(
-              repoInfo.owner,
-              repoInfo.name,
+					
+					// Fetch comments from GitHub
+					const comments = await githubService.getPullRequestComments(
+						repoInfo.owner,
+						repoInfo.name,
               prNumber,
               includeResolved
-            );
-
-            // Update UI
-            commentsProvider.refresh(comments);
+					);
+					
+					// Update UI
+					commentsProvider.refresh(comments);
 
             // Set PR info in the comments provider
             commentsProvider.setPRInfo(repoInfo.owner, repoInfo.name, prNumber);
-
-            return comments;
+					
+					return comments;
           }
         );
 
@@ -245,12 +245,12 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(
           "PR comments refreshed successfully."
         );
-      } catch (error) {
-        if (error instanceof Error) {
+			} catch (error) {
+				if (error instanceof Error) {
           vscode.window.showErrorMessage(
             `Error refreshing PR comments: ${error.message}`
           );
-        } else {
+				} else {
           vscode.window.showErrorMessage(
             "Unknown error refreshing PR comments"
           );
@@ -586,22 +586,22 @@ Instructions:
         } else {
           console.log("Opening general PR comment (not file-specific)");
           // This is a general PR comment (not on a specific line), show in a new tab
-          const doc = await vscode.workspace.openTextDocument({
+			const doc = await vscode.workspace.openTextDocument({
             content: `# Comment by @${comment.user.login}\n\n${comment.body}\n\n[View on GitHub](${comment.html_url})`,
             language: "markdown",
-          });
-
-          await vscode.window.showTextDocument(doc);
+			});
+			
+			await vscode.window.showTextDocument(doc);
         }
       }
     ),
-  ];
-
-  // Register contribution points
+	];
+	
+	// Register contribution points
   context.subscriptions.push(...commands, commentsTreeView);
-
-  // Register views
-  context.subscriptions.push(
+	
+	// Register views
+	context.subscriptions.push(
     vscode.window.registerTreeDataProvider("gittronComments", commentsProvider)
   );
 
