@@ -236,21 +236,23 @@ export function activate(context: vscode.ExtensionContext) {
   // Start watching repository for changes
   watchRepository();
 
-  // Automatically fetch comments on extension activation
-  vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Window,
-      title: "Fetching PR comments..."
-    },
-    async () => {
-      try {
-        await refreshComments(true);
-      } catch (error) {
-        // Silently handle error as this is automatic fetching
-        console.error('Error fetching comments on activation:', error);
+  // Automatically fetch comments on extension activation with delay to avoid race conditions
+  // Wait a bit to ensure Git extension is fully initialized
+  setTimeout(async () => {
+    try {
+      await refreshComments(true);
+    } catch (error) {
+      // Only show error if it's not related to missing PR or Git initialization issues
+      if (error instanceof Error && 
+          !error.message.includes("Could not determine PR number") &&
+          !error.message.includes("No Git repository found") &&
+          !error.message.includes("Git extension not found")) {
+        vscode.window.showErrorMessage(
+          `Error fetching PR comments: ${error.message}`
+        );
       }
     }
-  );
+  }, 2000); // 2 second delay to allow Git extension to initialize
 
   // Helper function to refresh PR comments
   async function refreshComments(forceNewPR: boolean = false): Promise<void> {
@@ -323,8 +325,11 @@ export function activate(context: vscode.ExtensionContext) {
           }
         );
       } catch (error) {
-        // Only show error if it's not related to missing PR
-        if (error instanceof Error && !error.message.includes("Could not determine PR number")) {
+        // Only show error if it's not related to missing PR or Git initialization issues
+        if (error instanceof Error && 
+            !error.message.includes("Could not determine PR number") &&
+            !error.message.includes("No Git repository found") &&
+            !error.message.includes("Git extension not found")) {
           vscode.window.showErrorMessage(
             `Error fetching PR comments: ${error.message}`
           );

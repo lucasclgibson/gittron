@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
-import simpleGit, { SimpleGit } from 'simple-git';
 import * as path from 'path';
-import axios from 'axios';
 
 export interface GitRepository {
   owner: string;
@@ -17,33 +15,59 @@ export interface PullRequest {
 }
 
 export class GitService {
-  private git: SimpleGit;
+  private async getGitApi() {
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+    if (!gitExtension) {
+      throw new Error('Git extension not found');
+    }
 
-  constructor() {
-    // Initialize with the workspace folder
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!gitExtension.isActive) {
+      await gitExtension.activate();
+    }
+
+    const gitApi = gitExtension.exports.getAPI(1);
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
       throw new Error('No workspace folder open');
     }
-    this.git = simpleGit(workspaceFolder);
+
+    // Wait a bit for repositories to be discovered if needed
+    if (gitApi.repositories.length === 0) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    const repository = gitApi.repositories.find((repo: any) => 
+      repo.rootUri.fsPath === workspaceFolder.uri.fsPath
+    );
+
+    if (!repository) {
+      throw new Error('No Git repository found in workspace');
+    }
+
+    return repository;
   }
 
   public async getRepositoryInfo(): Promise<GitRepository> {
     try {
+      const repository = await this.getGitApi();
+      
       // Get remote URL
-      const remotes = await this.git.getRemotes(true);
-      const originRemote = remotes.find(remote => remote.name === 'origin');
+      const remotes = repository.state.remotes;
+      const originRemote = remotes.find((remote: any) => remote.name === 'origin');
       
       if (!originRemote) {
         throw new Error('No origin remote found');
       }
       
       // Parse GitHub repository from URL
-      const remoteUrl = originRemote.refs.fetch;
+      const remoteUrl = originRemote.fetchUrl || originRemote.pushUrl;
       const { owner, name } = this.parseGitHubUrl(remoteUrl);
       
       // Get current branch
-      const branch = await this.git.revparse(['--abbrev-ref', 'HEAD']);
+      const branch = repository.state.HEAD?.name;
+      if (!branch) {
+        throw new Error('No current branch found');
+      }
       
       return { owner, name, branch };
     } catch (error) {
@@ -106,14 +130,25 @@ export class GitService {
     try {
       const apiUrl = `https://api.github.com/repos/${repo.owner}/${repo.name}/pulls?head=${repo.owner}:${repo.branch}&state=open`;
       
-      const response = await axios.get(apiUrl, {
+      const response = await fetch(apiUrl, {
         headers: {
           'Authorization': `token ${token}`,
           'Accept': 'application/vnd.github.v3+json'
         }
       });
       
-      return response.data.map((pr: any) => ({
+      if (!response.ok) {
+        throw new Error(`GitHub API request failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json() as Array<{
+        number: number;
+        title: string;
+        head: { ref: string };
+        base: { ref: string };
+      }>;
+      
+      return data.map((pr: any) => ({
         number: pr.number,
         title: pr.title,
         head: pr.head.ref,
