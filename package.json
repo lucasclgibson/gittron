@@ -19,10 +19,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished",
-    "onCommand:gittron.fetchPRComments",
-    "onCommand:gittron.setGitHubToken",
-    "onView:gittronComments"
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -55,6 +52,18 @@
         "command": "gittron.addToAIChat",
         "title": "Gittron: Add to AI Chat",
         "icon": "$(comment-discussion)",
+        "category": "Gittron"
+      },
+      {
+        "command": "gittron.resolveComment",
+        "title": "Gittron: Resolve Comment",
+        "icon": "$(check)",
+        "category": "Gittron"
+      },
+      {
+        "command": "gittron.resolveCommentFromHover",
+        "title": "Gittron: Resolve Comment from Hover",
+        "icon": "$(check)",
         "category": "Gittron"
       }
     ],
@@ -112,6 +121,13 @@
         {
           "command": "gittron.addToAIChat"
         }
+      ],
+      "view/item/context": [
+        {
+          "command": "gittron.resolveComment",
+          "when": "view == gittronComments && viewItem == prComment",
+          "group": "inline"
+        }
       ]
     },
     "keybindings": [
@@ -134,6 +150,8 @@
     "compile": "webpack",
     "watch": "webpack --watch",
     "package": "webpack --mode production --devtool hidden-source-map",
+    "build": "npm run compile",
+    "build-vsix": "npm run package && npx @vscode/vsce package",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
@@ -148,6 +166,7 @@
     "@typescript-eslint/parser": "^8.31.1",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.4.2",
     "eslint": "^9.25.1",
     "ts-loader": "^9.5.2",
     "typescript": "^5.8.3",

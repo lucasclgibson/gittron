@@ -21,22 +21,13 @@ let currentPRInfo: CurrentPRInfo | undefined;
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-  console.log("Activating Gittron extension");
-
-	// Initialize services
 	const githubService = new GitHubService();
 	const gitService = new GitService();
-	
-  console.log("Services initialized");
-	
-	// Initialize UI components
 	const commentsProvider = new CommentsProvider();
   const commentsTreeView = vscode.window.createTreeView("gittronComments", {
 		treeDataProvider: commentsProvider,
     showCollapseAll: true,
   });
-
-  console.log("UI components initialized");
 
   // Create decoration type for highlighting the commented line
   const commentDecoration = vscode.window.createTextEditorDecorationType({
@@ -92,6 +83,11 @@ export function activate(context: vscode.ExtensionContext) {
           `  <a href="command:gittron.addToAIChat">💬 Add to AI Chat</a>`
         );
 
+        // Add button to resolve comment
+        markdown.appendMarkdown(
+          `  <a href="command:gittron.resolveCommentFromHover">✅ Resolve Comment</a>`
+        );
+
         return new vscode.Hover(markdown);
       }
 
@@ -105,10 +101,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Helper function to refresh PR comments
   async function refreshComments(forceNewPR: boolean = false): Promise<void> {
     if (!currentPRInfo || forceNewPR) {
-      // If no PR info or forcing new PR, perform a full fetch like gittron.fetchPRComments
-      console.log("No current PR info or forcing new PR fetch");
 			try {
-				// Show progress indicator
         await vscode.window.withProgress(
           {
 					location: vscode.ProgressLocation.Notification,
@@ -116,26 +109,19 @@ export function activate(context: vscode.ExtensionContext) {
             cancellable: false,
           },
           async (progress) => {
-					// Get repository info
 					const repoInfo = await gitService.getRepositoryInfo();
             progress.report({
               message: `Detected repository: ${repoInfo.owner}/${repoInfo.name}`,
             });
 					
-					// Get PR number from current branch
             let prNumber: number | null = null;
             try {
               prNumber = await gitService.getCurrentPullRequest();
             } catch (error) {
-              // If getCurrentPullRequest throws an error, prompt the user to enter a PR number
-              console.log("Error getting PR number from branch:", error);
-
               if (error instanceof Error) {
-                // Show the error message
                 vscode.window.showErrorMessage(`${error.message}`);
               }
 
-              // Prompt for manual PR number input
               const prInput = await vscode.window.showInputBox({
                 prompt: "Enter PR number",
                 placeHolder: "e.g., 123",
@@ -157,7 +143,6 @@ export function activate(context: vscode.ExtensionContext) {
               throw new Error("Could not determine PR number");
             }
 
-            // Store the PR info for refreshing
             currentPRInfo = {
               owner: repoInfo.owner,
               repo: repoInfo.name,
@@ -168,17 +153,13 @@ export function activate(context: vscode.ExtensionContext) {
               message: `Getting unresolved comments for PR #${prNumber}`,
             });
 					
-					// Fetch comments from GitHub (always unresolved only)
 					const comments = await githubService.getPullRequestComments(
 						repoInfo.owner,
 						repoInfo.name,
               prNumber
 					);
 					
-					// Update UI
 					commentsProvider.refresh(comments);
-
-            // Set PR info in the comments provider
             commentsProvider.setPRInfo(repoInfo.owner, repoInfo.name, prNumber);
 					
 					return comments;
@@ -198,7 +179,6 @@ export function activate(context: vscode.ExtensionContext) {
         }
       }
     } else {
-      // Use existing PR info for a quicker refresh
       try {
         await vscode.window.withProgress(
           {
@@ -211,17 +191,14 @@ export function activate(context: vscode.ExtensionContext) {
               message: `Getting unresolved comments for PR #${currentPRInfo!.number}`,
             });
 
-            // Fetch comments from GitHub (always unresolved only)
             const comments = await githubService.getPullRequestComments(
               currentPRInfo!.owner,
               currentPRInfo!.repo,
               currentPRInfo!.number
             );
 
-            // Update UI
             commentsProvider.refresh(comments);
 
-            // Set PR info in the comments provider
             if (currentPRInfo) {
               commentsProvider.setPRInfo(
                 currentPRInfo.owner,
@@ -251,13 +228,9 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   // Register commands
-  console.log("Registering commands...");
-
-  // Register the setGitHubToken command directly first to ensure it's available
   const setGitHubTokenCommand = vscode.commands.registerCommand(
     "gittron.setGitHubToken",
     async () => {
-      console.log("Set GitHub Token command executed");
       const token = await vscode.window.showInputBox({
         prompt: "Enter your GitHub Personal Access Token",
         password: true,
@@ -271,22 +244,16 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // Add the command to context.subscriptions
   context.subscriptions.push(setGitHubTokenCommand);
-  console.log("Set GitHub Token command registered");
 
   const commands = [
     vscode.commands.registerCommand("gittron.fetchPRComments", async () => {
-      console.log("Fetch PR Comments command executed");
-      // Use the enhanced refreshComments with forceNewPR=true
       await refreshComments(true);
     }),
 
     vscode.commands.registerCommand(
       "gittron.copyAsAgentInstruction",
       async () => {
-        console.log("Copy as Agent Instruction command executed");
-
         if (!activeComment || !activeCommentLine) {
           vscode.window.showWarningMessage(
             "No active comment or code line to copy"
@@ -295,7 +262,6 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         try {
-          // Format the instruction text
           const instruction = `Code: 
 \`\`\`
 ${activeCommentLine.trim()}
@@ -308,7 +274,6 @@ Instructions:
 
 `;
 
-          // Copy to clipboard
           await vscode.env.clipboard.writeText(instruction);
           vscode.window.showInformationMessage(
             "Agent instruction copied to clipboard"
@@ -321,8 +286,6 @@ Instructions:
     ),
 
     vscode.commands.registerCommand("gittron.addToAIChat", async () => {
-      console.log("Add to AI Chat command executed");
-
       if (!activeComment || !activeCommentLine) {
         vscode.window.showWarningMessage(
           "No active comment or code line to add to AI chat"
@@ -331,7 +294,6 @@ Instructions:
       }
 
       try {
-        // Format the instruction text
         const instruction = `Code: 
 \`\`\`
 ${activeCommentLine.trim()}
@@ -344,22 +306,14 @@ Instructions:
 
 `;
 
-        console.log("Adding to AI Chat...");
         const originalClipboard = await vscode.env.clipboard.readText();
-        console.log("Original clipboard saved");
-        console.log("Opening new chat...");
         await vscode.commands.executeCommand("composer.newAgentChat");
-        console.log("Waiting for chat window...");
         await new Promise((resolve) => setTimeout(resolve, 500));
-        console.log("Setting clipboard with task description:", instruction);
         await vscode.env.clipboard.writeText(instruction);
-        console.log("Pasting content...");
         await vscode.commands.executeCommand(
           "editor.action.clipboardPasteAction"
         );
-        console.log("Restoring original clipboard");
         await vscode.env.clipboard.writeText(originalClipboard);
-        console.log("Add to AI Chat complete");
 
         vscode.window.showInformationMessage("Comment added to AI chat");
       } catch (error) {
@@ -371,14 +325,9 @@ Instructions:
     }),
 
     vscode.commands.registerCommand("gittron.refreshComments", async () => {
-      console.log("Refresh Comments command executed");
-
-      // Check if there's a PR already loaded
       if (!currentPRInfo) {
-        // If no PR loaded, treat like fetchPRComments
         await refreshComments(true);
       } else {
-        // Refresh existing PR
         await refreshComments();
       }
     }),
@@ -386,79 +335,36 @@ Instructions:
     vscode.commands.registerCommand(
       "gittron.handleComment",
       async (comment: PullRequestComment) => {
-        console.log(
-          "Handle Comment command executed with data:",
-          JSON.stringify(
-            {
-              id: comment.id,
-              user: comment.user.login,
-              path: comment.path,
-              line: comment.line,
-              position: comment.position,
-              bodyLength: comment.body.length,
-              firstLineOfBody: comment.body.split("\n")[0],
-            },
-            null,
-            2
-          )
-        );
-
-        // Clear any existing decoration
         if (activeCommentDecoration) {
           activeCommentDecoration.dispose();
           activeCommentDecoration = undefined;
         }
 
-        // Set the active comment for the hover provider
         activeComment = comment;
 
         if (comment.path && (comment.line || comment.position)) {
-          console.log(
-            `Opening file comment at ${comment.path}:${
-              comment.line || comment.position
-            }`
-          );
-          // This is a file comment, open the file at the correct line
           try {
-            // Find the workspace folder
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
               throw new Error("No workspace folder open");
             }
 
-            // Try to find the file in different ways
             let fileUri: vscode.Uri | undefined;
             let document: vscode.TextDocument | undefined;
 
-            // Try the direct path first
             try {
               fileUri = vscode.Uri.joinPath(workspaceFolder.uri, comment.path);
-              console.log(
-                "Attempting to open file at URI:",
-                fileUri.toString()
-              );
               await vscode.workspace.fs.stat(fileUri);
-              console.log("File exists at direct path:", comment.path);
               document = await vscode.workspace.openTextDocument(fileUri);
             } catch (err) {
-              console.log(
-                "Could not find file at direct path, trying to search for filename..."
-              );
-
-              // If direct path fails, try to search for the file by name
               const fileName = comment.path.split("/").pop() || "";
               if (fileName) {
-                console.log("Searching for file by name:", fileName);
                 const files = await vscode.workspace.findFiles(
                   `**/${fileName}`,
                   "**/node_modules/**",
                   5
                 );
                 if (files.length > 0) {
-                  console.log(
-                    "Found file matches:",
-                    files.map((f) => f.toString()).join(", ")
-                  );
                   fileUri = files[0];
                   document = await vscode.workspace.openTextDocument(fileUri);
                 } else {
@@ -473,36 +379,20 @@ Instructions:
               throw new Error(`Could not open document for ${comment.path}`);
             }
 
-            // Open the document in the editor
             const editor = await vscode.window.showTextDocument(document);
-
-            // Line numbers in GitHub API are 1-based, VS Code is 0-based
             const lineNumber = (comment.line || comment.position || 1) - 1;
-            console.log("Navigating to line number:", lineNumber);
-
-            // Make sure the line number is valid
             const lineCount = document.lineCount;
             const targetLine = Math.min(lineNumber, lineCount - 1);
-            if (targetLine !== lineNumber) {
-              console.log(
-                `Adjusted line number from ${lineNumber} to ${targetLine} (document has ${lineCount} lines)`
-              );
-            }
 
-            // Position at the beginning of the line
             const position = new vscode.Position(targetLine, 0);
-
-            // Move cursor to the line and show it
             editor.selection = new vscode.Selection(position, position);
             editor.revealRange(
               new vscode.Range(position, position),
               vscode.TextEditorRevealType.InCenter
             );
 
-            // Store the line of code for the copy command
             activeCommentLine = document.lineAt(targetLine).text;
 
-            // Apply decoration to highlight the line
             const range = new vscode.Range(
               new vscode.Position(targetLine, 0),
               new vscode.Position(
@@ -514,20 +404,14 @@ Instructions:
             activeCommentDecoration = commentDecoration;
             editor.setDecorations(commentDecoration, [range]);
 
-            // Simulate hovering to show the comment immediately
             setTimeout(() => {
               vscode.commands.executeCommand("editor.action.showHover");
             }, 500);
           } catch (error) {
             console.error("Error opening file:", error);
 
-            // Fallback to showing comment in a new tab
             const doc = await vscode.workspace.openTextDocument({
-              content: `# Comment by @${comment.user.login} on ${
-                comment.path
-              }:${comment.line || comment.position}\n\n${
-                comment.body
-              }\n\n[View on GitHub](${comment.html_url})`,
+              content: `# Comment by @${comment.user.login} on ${comment.path}:${comment.line || comment.position}\n\n${comment.body}\n\n[View on GitHub](${comment.html_url})`,
               language: "markdown",
             });
 
@@ -535,40 +419,142 @@ Instructions:
           }
         } else {
           console.log("Opening general PR comment (not file-specific)");
-          // This is a general PR comment (not on a specific line), show in a new tab
-			const doc = await vscode.workspace.openTextDocument({
+          const doc = await vscode.workspace.openTextDocument({
             content: `# Comment by @${comment.user.login}\n\n${comment.body}\n\n[View on GitHub](${comment.html_url})`,
             language: "markdown",
-			});
-			
-			await vscode.window.showTextDocument(doc);
+          });
+          
+          await vscode.window.showTextDocument(doc);
+        }
+      }
+    ),
+
+    vscode.commands.registerCommand(
+      "gittron.resolveComment",
+      async (commentItem: CommentItem) => {
+        if (!commentItem || !commentItem.comment) {
+          vscode.window.showErrorMessage("No comment selected to resolve");
+          return;
+        }
+
+        if (!currentPRInfo) {
+          vscode.window.showErrorMessage("No PR information available. Please fetch PR comments first.");
+          return;
+        }
+
+        const comment = commentItem.comment;
+
+        try {
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `Resolving comment by @${comment.user.login}...`,
+              cancellable: false,
+            },
+            async (progress) => {
+              const success = await githubService.resolveCommentThread(
+                currentPRInfo!.owner,
+                currentPRInfo!.repo,
+                currentPRInfo!.number,
+                comment.id
+              );
+
+              if (success) {
+                vscode.window.showInformationMessage(
+                  `Comment by @${comment.user.login} has been resolved`
+                );
+                
+                progress.report({ message: "Refreshing comments..." });
+                await refreshComments();
+              } else {
+                throw new Error("Failed to resolve comment thread");
+              }
+            }
+          );
+        } catch (error) {
+          console.error("Error resolving comment:", error);
+          if (error instanceof Error) {
+            vscode.window.showErrorMessage(
+              `Error resolving comment: ${error.message}`
+            );
+          } else {
+            vscode.window.showErrorMessage("Unknown error resolving comment");
+          }
+        }
+      }
+    ),
+
+    vscode.commands.registerCommand(
+      "gittron.resolveCommentFromHover",
+      async () => {
+        if (!activeComment) {
+          vscode.window.showErrorMessage("No active comment to resolve");
+          return;
+        }
+
+        if (!currentPRInfo) {
+          vscode.window.showErrorMessage("No PR information available. Please fetch PR comments first.");
+          return;
+        }
+
+        const comment = activeComment;
+
+        try {
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `Resolving comment by @${comment.user.login}...`,
+              cancellable: false,
+            },
+            async (progress) => {
+              const success = await githubService.resolveCommentThread(
+                currentPRInfo!.owner,
+                currentPRInfo!.repo,
+                currentPRInfo!.number,
+                comment.id
+              );
+
+              if (success) {
+                vscode.window.showInformationMessage(
+                  `Comment by @${comment.user.login} has been resolved`
+                );
+                
+                activeComment = undefined;
+                if (activeCommentDecoration) {
+                  activeCommentDecoration.dispose();
+                  activeCommentDecoration = undefined;
+                }
+                
+                progress.report({ message: "Refreshing comments..." });
+                await refreshComments();
+              } else {
+                throw new Error("Failed to resolve comment thread");
+              }
+            }
+          );
+        } catch (error) {
+          console.error("Error resolving comment from hover:", error);
+          if (error instanceof Error) {
+            vscode.window.showErrorMessage(
+              `Error resolving comment: ${error.message}`
+            );
+          } else {
+            vscode.window.showErrorMessage("Unknown error resolving comment");
+          }
         }
       }
     ),
 	];
 	
-	// Register contribution points
-  context.subscriptions.push(...commands, commentsTreeView);
+	context.subscriptions.push(...commands, commentsTreeView);
 	
-	// Register views
 	context.subscriptions.push(
     vscode.window.registerTreeDataProvider("gittronComments", commentsProvider)
   );
-
-  // Log all registered commands for debugging
-  vscode.commands.getCommands(true).then((commands) => {
-    console.log("All registered commands:");
-    commands
-      .filter((cmd) => cmd.startsWith("gittron."))
-      .forEach((cmd) => {
-        console.log(`- ${cmd}`);
-      });
-  });
 }
 
 // This method is called when your extension is deactivated
 export function deactivate() {
-  // Dispose of any active decorations
   if (activeCommentDecoration) {
     activeCommentDecoration.dispose();
     activeCommentDecoration = undefined;
