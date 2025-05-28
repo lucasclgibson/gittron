@@ -1,22 +1,35 @@
 {
   "name": "gittron",
-  "displayName": "gittron",
-  "description": "Automate PR reviews with AI assistance",
-  "version": "0.0.1",
-  "publisher": "local-dev",
+  "displayName": "Gittron",
+  "description": "Automate PR reviews with the Cursor agent - seamlessly integrate GitHub PR comments with Cursor's AI-powered workflow",
+  "version": "0.0.3",
+  "publisher": "lucgibson",
+  "icon": "icon.png",
+  "keywords": [
+    "cursor",
+    "ai",
+    "github",
+    "pull-request",
+    "code-review",
+    "comments",
+    "automation",
+    "agent",
+    "git"
+  ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/lucgibson/gittron.git"
+    "url": "https://github.com/lucasclgibson/gittron.git"
   },
   "bugs": {
-    "url": "https://github.com/lucgibson/gittron/issues"
+    "url": "https://github.com/lucasclgibson/gittron/issues"
   },
-  "homepage": "https://github.com/lucgibson/gittron#readme",
+  "homepage": "https://github.com/lucasclgibson/gittron#readme",
   "engines": {
     "vscode": "^1.74.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Machine Learning"
   ],
   "activationEvents": [
     "onStartupFinished"

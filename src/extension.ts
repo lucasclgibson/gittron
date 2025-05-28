@@ -496,14 +496,29 @@ ${targetComment.body}
         }
 
         try {
-          const instruction = `Code: 
+          // Enhanced instruction format optimized for Cursor's AI
+          const fileContext = targetComment.path ? `File: \`${targetComment.path}\`` : 'General PR comment';
+          const lineContext = targetComment.line ? ` (Line ${targetComment.line})` : '';
+          
+          const instruction = `## 🔍 Code Review Context
+
+${fileContext}${lineContext}
+
+### 📝 Code:
 \`\`\`
 ${activeCommentLine.trim()}
 \`\`\`
 
-Comment by @${targetComment.user.login}:
+### 💬 Review Comment by @${targetComment.user.login}:
 ${targetComment.body}
-`;
+
+### 🎯 How can you help?
+- Analyze this code review feedback
+- Suggest how to address the concern
+- Explain the reasoning behind the comment
+- Help draft a professional response
+
+[View on GitHub](${targetComment.html_url})`;
 
           const originalClipboard = await vscode.env.clipboard.readText();
           await vscode.commands.executeCommand("composer.newAgentChat");
@@ -514,7 +529,7 @@ ${targetComment.body}
           );
           await vscode.env.clipboard.writeText(originalClipboard);
 
-          vscode.window.showInformationMessage("Comment added to AI chat");
+          vscode.window.showInformationMessage("📨 Comment sent to Cursor AI with full context");
         } catch (error) {
           console.error("Error adding to AI chat:", error);
           vscode.window.showErrorMessage(
