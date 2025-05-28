@@ -53,6 +53,35 @@ export function activate(context: vscode.ExtensionContext) {
   vscode.commands.executeCommand('setContext', 'gittron:hasComments', false);
   vscode.commands.executeCommand('setContext', 'gittron:isReviewMode', false);
 
+  // Create status bar item for PR comments
+  const commentsStatusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    100
+  );
+  commentsStatusBarItem.command = 'gittron.startReviewMode';
+  commentsStatusBarItem.tooltip = 'Click to start reviewing PR comments';
+  context.subscriptions.push(commentsStatusBarItem);
+
+  // Function to update status bar item
+  function updateStatusBarItem(commentCount: number, unresolvedCount: number) {
+    if (commentCount > 0) {
+      if (isReviewModeActive) {
+        // When in review mode, show different text and command
+        commentsStatusBarItem.text = `$(comment-discussion) Review Mode Active`;
+        commentsStatusBarItem.tooltip = `Reviewing ${unresolvedCount} unresolved comments - Click to exit review mode`;
+        commentsStatusBarItem.command = 'gittron.exitReviewMode';
+      } else {
+        // Normal mode - show count and start review command
+        commentsStatusBarItem.text = `$(comment-discussion) ${unresolvedCount} unresolved`;
+        commentsStatusBarItem.tooltip = `${commentCount} total comments (${unresolvedCount} unresolved) - Click to start review`;
+        commentsStatusBarItem.command = 'gittron.startReviewMode';
+      }
+      commentsStatusBarItem.show();
+    } else {
+      commentsStatusBarItem.hide();
+    }
+  }
+
   // Create decoration type for highlighting the commented line
   const commentDecoration = vscode.window.createTextEditorDecorationType({
     backgroundColor: new vscode.ThemeColor(
@@ -278,6 +307,7 @@ export function activate(context: vscode.ExtensionContext) {
               currentPRInfo = undefined;
               commentsProvider.clear();
               vscode.commands.executeCommand('setContext', 'gittron:hasComments', false);
+              updateStatusBarItem(0, 0); // Hide status bar item
               return;
             }
 
@@ -286,6 +316,7 @@ export function activate(context: vscode.ExtensionContext) {
               currentPRInfo = undefined;
               commentsProvider.clear();
               vscode.commands.executeCommand('setContext', 'gittron:hasComments', false);
+              updateStatusBarItem(0, 0); // Hide status bar item
               return;
             }
 
@@ -319,6 +350,9 @@ export function activate(context: vscode.ExtensionContext) {
                   `Found ${unresolvedCount} unresolved comment${unresolvedCount === 1 ? '' : 's'} in PR #${prNumber}`
                 );
               }
+              updateStatusBarItem(comments.length, unresolvedCount);
+            } else {
+              updateStatusBarItem(0, 0); // Hide status bar item if no comments
             }
 
             return comments;
@@ -374,6 +408,8 @@ export function activate(context: vscode.ExtensionContext) {
                 currentPRInfo.number
               );
             }
+
+            updateStatusBarItem(comments.length, unresolvedCount);
 
             return comments;
           }
@@ -873,6 +909,12 @@ ${targetComment.body}
     ),
 
     vscode.commands.registerCommand("gittron.startReviewMode", async () => {
+      // Prevent starting review mode if already active
+      if (isReviewModeActive) {
+        vscode.window.showInformationMessage("Review mode is already active. Use the navigation panel to review comments.");
+        return;
+      }
+
       if (!currentPRInfo) {
         vscode.window.showErrorMessage(
           "No PR information available. Please fetch PR comments first."
@@ -900,6 +942,11 @@ ${targetComment.body}
       isReviewModeActive = true;
       currentReviewIndex = 0;
       vscode.commands.executeCommand('setContext', 'gittron:isReviewMode', true);
+
+      // Update the main status bar item to reflect review mode
+      const allComments = commentsProvider.getAllComments();
+      const unresolvedCount = allComments.filter(c => !c.resolved).length;
+      updateStatusBarItem(allComments.length, unresolvedCount);
 
       // Show review mode status bar item
       const statusBarItem = vscode.window.createStatusBarItem(
@@ -995,6 +1042,10 @@ ${targetComment.body}
               isReviewModeActive = false;
               statusBarItem.dispose();
               vscode.commands.executeCommand('setContext', 'gittron:isReviewMode', false);
+              // Update the main status bar item to exit review mode
+              const updatedComments = commentsProvider.getAllComments();
+              const updatedUnresolvedCount = updatedComments.filter(c => !c.resolved).length;
+              updateStatusBarItem(updatedComments.length, updatedUnresolvedCount);
               break;
             }
 
@@ -1012,6 +1063,10 @@ ${targetComment.body}
             isReviewModeActive = false;
             statusBarItem.dispose();
             vscode.commands.executeCommand('setContext', 'gittron:isReviewMode', false);
+            // Update the main status bar item to exit review mode
+            const exitComments = commentsProvider.getAllComments();
+            const exitUnresolvedCount = exitComments.filter(c => !c.resolved).length;
+            updateStatusBarItem(exitComments.length, exitUnresolvedCount);
             vscode.window.showInformationMessage("Exited review mode.");
             break;
         }
@@ -1021,6 +1076,10 @@ ${targetComment.body}
     vscode.commands.registerCommand("gittron.exitReviewMode", () => {
       isReviewModeActive = false;
       vscode.commands.executeCommand('setContext', 'gittron:isReviewMode', false);
+      // Update the main status bar item to exit review mode
+      const exitComments = commentsProvider.getAllComments();
+      const exitUnresolvedCount = exitComments.filter(c => !c.resolved).length;
+      updateStatusBarItem(exitComments.length, exitUnresolvedCount);
       vscode.window.showInformationMessage("Exited review mode.");
     })
   ];
