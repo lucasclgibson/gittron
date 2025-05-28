@@ -77,6 +77,18 @@
         "title": "Gittron: Reply to Comment from Hover",
         "icon": "$(reply)",
         "category": "Gittron"
+      },
+      {
+        "command": "gittron.startReviewMode",
+        "title": "Gittron: Start Review Mode",
+        "icon": "$(comment-discussion)",
+        "category": "Gittron"
+      },
+      {
+        "command": "gittron.exitReviewMode",
+        "title": "Gittron: Exit Review Mode",
+        "icon": "$(close)",
+        "category": "Gittron"
       }
     ],
     "configuration": {
@@ -118,6 +130,11 @@
           "command": "gittron.setGitHubToken",
           "when": "view == gittronComments",
           "group": "navigation@2"
+        },
+        {
+          "command": "gittron.startReviewMode",
+          "when": "view == gittronComments && !gittron:isReviewMode",
+          "group": "navigation@3"
         }
       ],
       "commandPalette": [
@@ -132,6 +149,14 @@
         },
         {
           "command": "gittron.addToAIChat"
+        },
+        {
+          "command": "gittron.startReviewMode",
+          "when": "gittron:hasComments && !gittron:isReviewMode"
+        },
+        {
+          "command": "gittron.exitReviewMode",
+          "when": "gittron:isReviewMode"
         }
       ],
       "view/item/context": [

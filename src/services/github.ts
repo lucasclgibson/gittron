@@ -12,6 +12,8 @@ export interface PullRequestComment {
   created_at: string;
   html_url: string;
   resolved?: boolean; // Always false - only unresolved comments are returned
+  threadId?: string;
+  isFirstComment?: boolean;
 }
 
 export class GitHubService {
@@ -139,6 +141,59 @@ export class GitHubService {
       if (displayableCommentIds.size === 0) {
         return [];
       }
+
+      // First get the thread information
+      const token = vscode.workspace.getConfiguration('gittron').get<string>('githubToken');
+      if (!token) {
+        throw new Error('GitHub token not set.');
+      }
+
+      const threadQuery = `
+        query($owner: String!, $repo: String!, $pullNumber: Int!) {
+          repository(owner: $owner, name: $repo) {
+            pullRequest(number: $pullNumber) {
+              reviewThreads(first: 100) {
+                nodes {
+                  id
+                  isResolved
+                  comments(first: 100) {
+                    nodes {
+                      databaseId
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const threadResponse = await fetch('https://api.github.com/graphql', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: threadQuery,
+          variables: { owner, repo, pullNumber }
+        })
+      });
+
+      const threadData: any = await threadResponse.json();
+      const commentToThreadMap = new Map<number, string>();
+      
+      if (threadData.data?.repository?.pullRequest?.reviewThreads?.nodes) {
+        for (const thread of threadData.data.repository.pullRequest.reviewThreads.nodes) {
+          if (thread.comments?.nodes) {
+            for (const comment of thread.comments.nodes) {
+              if (comment.databaseId) {
+                commentToThreadMap.set(comment.databaseId, thread.id);
+              }
+            }
+          }
+        }
+      }
       
       const reviewComments = await this.fetchAllPages<any>(
         `https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/comments`
@@ -146,19 +201,29 @@ export class GitHubService {
       
       const comments: PullRequestComment[] = reviewComments
         .filter(comment => displayableCommentIds.has(comment.id))
-        .map(comment => ({
-          id: comment.id,
-          body: comment.body || '',
-          user: {
-            login: comment.user?.login || 'unknown'
-          },
-          path: comment.path,
-          line: comment.line || (comment as any).original_line,
-          position: comment.position || (comment as any).original_position,
-          created_at: comment.created_at,
-          html_url: comment.html_url,
-          resolved: false
-        }));
+        .map(comment => {
+          const threadId = commentToThreadMap.get(comment.id);
+          const isFirstComment = threadId ? 
+            reviewComments.filter(c => commentToThreadMap.get(c.id) === threadId)
+              .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0]?.id === comment.id
+            : false;
+
+          return {
+            id: comment.id,
+            body: comment.body || '',
+            user: {
+              login: comment.user?.login || 'unknown'
+            },
+            path: comment.path,
+            line: comment.line || (comment as any).original_line,
+            position: comment.position || (comment as any).original_position,
+            created_at: comment.created_at,
+            html_url: comment.html_url,
+            resolved: false,
+            threadId,
+            isFirstComment
+          };
+        });
       
       return comments;
     } catch (error) {

@@ -18,8 +18,10 @@ interface CurrentPRInfo {
 }
 let currentPRInfo: CurrentPRInfo | undefined;
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+// Store review mode state
+let isReviewModeActive = false;
+let currentReviewIndex = 0;
+
 export function activate(context: vscode.ExtensionContext) {
   const githubService = new GitHubService();
   const gitService = new GitService();
@@ -28,6 +30,28 @@ export function activate(context: vscode.ExtensionContext) {
     treeDataProvider: commentsProvider,
     showCollapseAll: true,
   });
+
+  // Helper function to show a specific thread during review
+  async function showThreadAtIndex(index: number, threadArray: [string, PullRequestComment[]][]) {
+    const [threadId, comments] = threadArray[index];
+    const firstComment = comments[0];
+    
+    // Use the existing comment handling logic to show the thread
+    await vscode.commands.executeCommand("gittron.handleComment", firstComment);
+    
+    // Focus the comments view
+    await vscode.commands.executeCommand('gittronComments.focus');
+    
+    // Reveal the comment in the tree view
+    const treeItem = commentsProvider.findTreeItem(firstComment);
+    if (treeItem) {
+      await commentsTreeView.reveal(treeItem, { select: true, focus: true });
+    }
+  }
+
+  // Set up context for command visibility
+  vscode.commands.executeCommand('setContext', 'gittron:hasComments', false);
+  vscode.commands.executeCommand('setContext', 'gittron:isReviewMode', false);
 
   // Create decoration type for highlighting the commented line
   const commentDecoration = vscode.window.createTextEditorDecorationType({
@@ -51,8 +75,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       // Check if the hover is on the line we navigated to
       const lineNumber = position.line;
-      const targetLine =
-        (activeComment.line || activeComment.position || 1) - 1;
+      const targetLine = (activeComment.line || activeComment.position || 1) - 1;
 
       if (lineNumber === targetLine) {
         // Store the current line of code for the copy command
@@ -63,35 +86,78 @@ export function activate(context: vscode.ExtensionContext) {
         markdown.isTrusted = true;
         markdown.supportHtml = true;
 
-        markdown.appendMarkdown(
-          `**Comment by [@${activeComment.user.login}](${activeComment.html_url})**\n\n`
-        );
-        markdown.appendMarkdown(activeComment.body);
+        // If this comment is part of a thread, find all related comments
+        if (activeComment.threadId) {
+          const threadComments = commentsProvider.getCommentsInThread(activeComment.threadId)
+            .sort((a: PullRequestComment, b: PullRequestComment) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-        // Add link to GitHub
-        markdown.appendMarkdown(
-          `\n\n[View on GitHub](${activeComment.html_url})`
-        );
+          // Add thread summary
+          markdown.appendMarkdown(`**Discussion Thread (${threadComments.length} comments)**\n\n`);
 
-        // Add button to copy as agent instruction
-        markdown.appendMarkdown(
-          `\n\n<a href="command:gittron.copyAsAgentInstruction">📋 Copy Instruction</a>`
-        );
+          // Add each comment in the thread
+          threadComments.forEach((comment: PullRequestComment, index: number) => {
+            // Add separator between comments
+            if (index > 0) {
+              markdown.appendMarkdown('\n\n---\n\n');
+            }
 
-        // Add button to add to AI chat
-        markdown.appendMarkdown(
-          `  <a href="command:gittron.addToAIChat">💬 Add to Chat</a>`
-        );
+            // Add comment header with author and timestamp
+            const date = new Date(comment.created_at);
+            const timeString = date.toLocaleString();
+            markdown.appendMarkdown(
+              `**[@${comment.user.login}](${comment.html_url})** · ${timeString}\n\n`
+            );
 
-        // Add button to reply to comment
-        markdown.appendMarkdown(
-          `  <a href="command:gittron.replyToCommentFromHover">💬 Reply</a>`
-        );
+            // Add comment body
+            markdown.appendMarkdown(`${comment.body}\n\n`);
 
-        // Add button to resolve comment
-        markdown.appendMarkdown(
-          `  <a href="command:gittron.resolveCommentFromHover">✅ Resolve</a>`
-        );
+            // Add action buttons for each comment
+            markdown.appendMarkdown(
+              `<a href="command:gittron.copyAsAgentInstruction?${encodeURIComponent(JSON.stringify([comment]))}">📋</a> `
+            );
+            markdown.appendMarkdown(
+              `<a href="command:gittron.addToAIChat?${encodeURIComponent(JSON.stringify([comment]))}">💬</a> `
+            );
+            markdown.appendMarkdown(
+              `<a href="command:gittron.replyToCommentFromHover?${encodeURIComponent(JSON.stringify([comment]))}">↩️</a> `
+            );
+            if (index === threadComments.length - 1) {
+              markdown.appendMarkdown(
+                `<a href="command:gittron.resolveCommentFromHover?${encodeURIComponent(JSON.stringify([comment]))}">✅</a>`
+              );
+            }
+          });
+
+          // Add a reply button at the bottom of the thread
+          markdown.appendMarkdown('\n\n---\n\n');
+          markdown.appendMarkdown(
+            `<a href="command:gittron.replyToCommentFromHover">💬 Reply to Thread</a>`
+          );
+          markdown.appendMarkdown(
+            `  <a href="command:gittron.resolveCommentFromHover">✅ Resolve Thread</a>`
+          );
+        } else {
+          // Single comment view
+          markdown.appendMarkdown(
+            `**Comment by [@${activeComment.user.login}](${activeComment.html_url})**\n\n`
+          );
+          markdown.appendMarkdown(activeComment.body);
+
+          // Add action buttons
+          markdown.appendMarkdown('\n\n---\n\n');
+          markdown.appendMarkdown(
+            `<a href="command:gittron.copyAsAgentInstruction">📋 Copy</a>`
+          );
+          markdown.appendMarkdown(
+            `  <a href="command:gittron.addToAIChat">💬 Add to Chat</a>`
+          );
+          markdown.appendMarkdown(
+            `  <a href="command:gittron.replyToCommentFromHover">↩️ Reply</a>`
+          );
+          markdown.appendMarkdown(
+            `  <a href="command:gittron.resolveCommentFromHover">✅ Resolve</a>`
+          );
+        }
 
         return new vscode.Hover(markdown);
       }
@@ -103,14 +169,100 @@ export function activate(context: vscode.ExtensionContext) {
   // Register the hover provider
   context.subscriptions.push(hoverProvider);
 
+  // Add Git repository watcher
+  let currentBranch: string | undefined;
+  
+  async function watchRepository() {
+    try {
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders) {
+        return;
+      }
+
+      // Subscribe to Git extension activation
+      const gitExtension = vscode.extensions.getExtension('vscode.git');
+      if (!gitExtension) {
+        return;
+      }
+
+      // Ensure Git extension is activated
+      if (!gitExtension.isActive) {
+        await gitExtension.activate();
+      }
+
+      const git = gitExtension.exports.getAPI(1);
+      
+      interface Repository {
+        state: {
+          HEAD?: {
+            name?: string;
+          };
+          onDidChange: (listener: () => void) => vscode.Disposable;
+        };
+      }
+
+      // Function to handle repository state changes
+      const handleRepositoryChange = async (repository: Repository) => {
+        const newBranch = repository.state.HEAD?.name;
+        if (newBranch && newBranch !== currentBranch) {
+          currentBranch = newBranch;
+          // Add a small delay to ensure Git operations are complete
+          setTimeout(async () => {
+            await refreshComments(true);
+          }, 1000);
+        }
+      };
+
+      // Watch for repository changes
+      const disposables: vscode.Disposable[] = [];
+
+      // Handle initial repositories
+      for (const repository of git.repositories) {
+        currentBranch = repository.state.HEAD?.name;
+        disposables.push(repository.state.onDidChange(() => handleRepositoryChange(repository)));
+      }
+
+      // Watch for new repositories
+      disposables.push(git.onDidOpenRepository((repository: Repository) => {
+        currentBranch = repository.state.HEAD?.name;
+        disposables.push(repository.state.onDidChange(() => handleRepositoryChange(repository)));
+      }));
+
+      // Add disposables to context subscriptions
+      context.subscriptions.push(...disposables);
+
+    } catch (error) {
+      console.error('Error setting up repository watcher:', error);
+    }
+  }
+
+  // Start watching repository for changes
+  watchRepository();
+
+  // Automatically fetch comments on extension activation
+  vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Window,
+      title: "Fetching PR comments..."
+    },
+    async () => {
+      try {
+        await refreshComments(true);
+      } catch (error) {
+        // Silently handle error as this is automatic fetching
+        console.error('Error fetching comments on activation:', error);
+      }
+    }
+  );
+
   // Helper function to refresh PR comments
   async function refreshComments(forceNewPR: boolean = false): Promise<void> {
     if (!currentPRInfo || forceNewPR) {
       try {
         await vscode.window.withProgress(
           {
-            location: vscode.ProgressLocation.Notification,
-            title: "Fetching PR comments...",
+            location: vscode.ProgressLocation.Window,
+            title: "Checking for PR comments...",
             cancellable: false,
           },
           async (progress) => {
@@ -123,29 +275,19 @@ export function activate(context: vscode.ExtensionContext) {
             try {
               prNumber = await gitService.getCurrentPullRequest();
             } catch (error) {
-              if (error instanceof Error) {
-                vscode.window.showErrorMessage(`${error.message}`);
-              }
-
-              const prInput = await vscode.window.showInputBox({
-                prompt: "Enter PR number",
-                placeHolder: "e.g., 123",
-                validateInput: (input) => {
-                  return /^\d+$/.test(input)
-                    ? null
-                    : "Please enter a valid PR number (digits only)";
-                },
-              });
-
-              if (prInput) {
-                prNumber = parseInt(prInput, 10);
-              } else {
-                throw new Error("PR number is required");
-              }
+              // If no PR is found, clear everything
+              currentPRInfo = undefined;
+              commentsProvider.clear();
+              vscode.commands.executeCommand('setContext', 'gittron:hasComments', false);
+              return;
             }
 
+            // If no PR number was found, clear everything
             if (!prNumber) {
-              throw new Error("Could not determine PR number");
+              currentPRInfo = undefined;
+              commentsProvider.clear();
+              vscode.commands.executeCommand('setContext', 'gittron:hasComments', false);
+              return;
             }
 
             currentPRInfo = {
@@ -155,7 +297,7 @@ export function activate(context: vscode.ExtensionContext) {
             };
 
             progress.report({
-              message: `Getting unresolved comments for PR #${prNumber}`,
+              message: `Getting comments for PR #${prNumber}`,
             });
 
             const comments = await githubService.getPullRequestComments(
@@ -166,36 +308,42 @@ export function activate(context: vscode.ExtensionContext) {
 
             commentsProvider.refresh(comments);
             commentsProvider.setPRInfo(repoInfo.owner, repoInfo.name, prNumber);
+            
+            // Update context based on whether there are comments
+            vscode.commands.executeCommand('setContext', 'gittron:hasComments', comments.length > 0);
+
+            // Only show notification if comments were found
+            if (comments.length > 0) {
+              const unresolvedCount = comments.filter(c => !c.resolved).length;
+              if (unresolvedCount > 0) {
+                vscode.window.showInformationMessage(
+                  `Found ${unresolvedCount} unresolved comment${unresolvedCount === 1 ? '' : 's'} in PR #${prNumber}`
+                );
+              }
+            }
 
             return comments;
           }
         );
-
-        vscode.window.showInformationMessage(
-          "PR comments fetched successfully."
-        );
       } catch (error) {
-        if (error instanceof Error) {
+        // Only show error if it's not related to missing PR
+        if (error instanceof Error && !error.message.includes("Could not determine PR number")) {
           vscode.window.showErrorMessage(
             `Error fetching PR comments: ${error.message}`
           );
-        } else {
-          vscode.window.showErrorMessage("Unknown error fetching PR comments");
         }
       }
     } else {
       try {
         await vscode.window.withProgress(
           {
-            location: vscode.ProgressLocation.Notification,
+            location: vscode.ProgressLocation.Window,
             title: "Refreshing PR comments...",
             cancellable: false,
           },
           async (progress) => {
             progress.report({
-              message: `Getting unresolved comments for PR #${
-                currentPRInfo!.number
-              }`,
+              message: `Getting comments for PR #${currentPRInfo!.number}`,
             });
 
             const comments = await githubService.getPullRequestComments(
@@ -205,6 +353,17 @@ export function activate(context: vscode.ExtensionContext) {
             );
 
             commentsProvider.refresh(comments);
+            
+            // Update context based on whether there are comments
+            vscode.commands.executeCommand('setContext', 'gittron:hasComments', comments.length > 0);
+
+            // Only show notification if new unresolved comments were found
+            const unresolvedCount = comments.filter(c => !c.resolved).length;
+            if (unresolvedCount > 0) {
+              vscode.window.showInformationMessage(
+                `Found ${unresolvedCount} unresolved comment${unresolvedCount === 1 ? '' : 's'} in PR #${currentPRInfo!.number}`
+              );
+            }
 
             if (currentPRInfo) {
               commentsProvider.setPRInfo(
@@ -216,9 +375,6 @@ export function activate(context: vscode.ExtensionContext) {
 
             return comments;
           }
-        );
-        vscode.window.showInformationMessage(
-          "PR comments refreshed successfully."
         );
       } catch (error) {
         if (error instanceof Error) {
@@ -260,8 +416,9 @@ export function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand(
       "gittron.copyAsAgentInstruction",
-      async () => {
-        if (!activeComment || !activeCommentLine) {
+      async (comment?: PullRequestComment) => {
+        const targetComment = comment || activeComment;
+        if (!targetComment || !activeCommentLine) {
           vscode.window.showWarningMessage(
             "No active comment or code line to copy"
           );
@@ -274,8 +431,8 @@ export function activate(context: vscode.ExtensionContext) {
 ${activeCommentLine.trim()}
 \`\`\`
 
-Comment by @${activeComment.user.login}:
-${activeComment.body}
+Comment by @${targetComment.user.login}:
+${targetComment.body}
 `;
 
           await vscode.env.clipboard.writeText(instruction);
@@ -289,41 +446,45 @@ ${activeComment.body}
       }
     ),
 
-    vscode.commands.registerCommand("gittron.addToAIChat", async () => {
-      if (!activeComment || !activeCommentLine) {
-        vscode.window.showWarningMessage(
-          "No active comment or code line to add to AI chat"
-        );
-        return;
-      }
+    vscode.commands.registerCommand(
+      "gittron.addToAIChat",
+      async (comment?: PullRequestComment) => {
+        const targetComment = comment || activeComment;
+        if (!targetComment || !activeCommentLine) {
+          vscode.window.showWarningMessage(
+            "No active comment or code line to add to AI chat"
+          );
+          return;
+        }
 
-      try {
-        const instruction = `Code: 
+        try {
+          const instruction = `Code: 
 \`\`\`
 ${activeCommentLine.trim()}
 \`\`\`
 
-Comment by @${activeComment.user.login}:
-${activeComment.body}
+Comment by @${targetComment.user.login}:
+${targetComment.body}
 `;
 
-        const originalClipboard = await vscode.env.clipboard.readText();
-        await vscode.commands.executeCommand("composer.newAgentChat");
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        await vscode.env.clipboard.writeText(instruction);
-        await vscode.commands.executeCommand(
-          "editor.action.clipboardPasteAction"
-        );
-        await vscode.env.clipboard.writeText(originalClipboard);
+          const originalClipboard = await vscode.env.clipboard.readText();
+          await vscode.commands.executeCommand("composer.newAgentChat");
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          await vscode.env.clipboard.writeText(instruction);
+          await vscode.commands.executeCommand(
+            "editor.action.clipboardPasteAction"
+          );
+          await vscode.env.clipboard.writeText(originalClipboard);
 
-        vscode.window.showInformationMessage("Comment added to AI chat");
-      } catch (error) {
-        console.error("Error adding to AI chat:", error);
-        vscode.window.showErrorMessage(
-          "Failed to add to AI chat. Make sure Cursor AI chat is available."
-        );
+          vscode.window.showInformationMessage("Comment added to AI chat");
+        } catch (error) {
+          console.error("Error adding to AI chat:", error);
+          vscode.window.showErrorMessage(
+            "Failed to add to AI chat. Make sure Cursor AI chat is available."
+          );
+        }
       }
-    }),
+    ),
 
     vscode.commands.registerCommand("gittron.refreshComments", async () => {
       if (!currentPRInfo) {
@@ -336,12 +497,15 @@ ${activeComment.body}
     vscode.commands.registerCommand(
       "gittron.handleComment",
       async (comment: PullRequestComment) => {
+        // Clear any existing decorations
         if (activeCommentDecoration) {
           activeCommentDecoration.dispose();
           activeCommentDecoration = undefined;
         }
 
+        // Reset active comment and line
         activeComment = comment;
+        activeCommentLine = undefined;
 
         if (comment.path && (comment.line || comment.position)) {
           try {
@@ -402,12 +566,24 @@ ${activeComment.body}
               )
             );
 
-            activeCommentDecoration = commentDecoration;
-            editor.setDecorations(commentDecoration, [range]);
+            // Create a new decoration type for each comment to ensure proper updating
+            activeCommentDecoration = vscode.window.createTextEditorDecorationType({
+              backgroundColor: new vscode.ThemeColor(
+                "editor.findMatchHighlightBackground"
+              ),
+              isWholeLine: true,
+              overviewRulerColor: new vscode.ThemeColor(
+                "editorOverviewRuler.findMatchForeground"
+              ),
+              overviewRulerLane: vscode.OverviewRulerLane.Right,
+            });
 
+            editor.setDecorations(activeCommentDecoration, [range]);
+
+            // Force the hover provider to update
             setTimeout(() => {
               vscode.commands.executeCommand("editor.action.showHover");
-            }, 500);
+            }, 100);
           } catch (error) {
             console.error("Error opening file:", error);
 
@@ -493,8 +669,9 @@ ${activeComment.body}
 
     vscode.commands.registerCommand(
       "gittron.resolveCommentFromHover",
-      async () => {
-        if (!activeComment) {
+      async (comment?: PullRequestComment) => {
+        const targetComment = comment || activeComment;
+        if (!targetComment) {
           vscode.window.showErrorMessage("No active comment to resolve");
           return;
         }
@@ -506,13 +683,11 @@ ${activeComment.body}
           return;
         }
 
-        const comment = activeComment;
-
         try {
           await vscode.window.withProgress(
             {
               location: vscode.ProgressLocation.Notification,
-              title: `Resolving comment by @${comment.user.login}...`,
+              title: `Resolving comment by @${targetComment.user.login}...`,
               cancellable: false,
             },
             async (progress) => {
@@ -520,18 +695,20 @@ ${activeComment.body}
                 currentPRInfo!.owner,
                 currentPRInfo!.repo,
                 currentPRInfo!.number,
-                comment.id
+                targetComment.id
               );
 
               if (success) {
                 vscode.window.showInformationMessage(
-                  `Comment by @${comment.user.login} has been resolved`
+                  `Comment by @${targetComment.user.login} has been resolved`
                 );
 
-                activeComment = undefined;
-                if (activeCommentDecoration) {
-                  activeCommentDecoration.dispose();
-                  activeCommentDecoration = undefined;
+                if (targetComment === activeComment) {
+                  activeComment = undefined;
+                  if (activeCommentDecoration) {
+                    activeCommentDecoration.dispose();
+                    activeCommentDecoration = undefined;
+                  }
                 }
 
                 progress.report({ message: "Refreshing comments..." });
@@ -626,8 +803,9 @@ ${activeComment.body}
 
     vscode.commands.registerCommand(
       "gittron.replyToCommentFromHover",
-      async () => {
-        if (!activeComment) {
+      async (comment?: PullRequestComment) => {
+        const targetComment = comment || activeComment;
+        if (!targetComment) {
           vscode.window.showErrorMessage("No active comment to reply to");
           return;
         }
@@ -639,10 +817,8 @@ ${activeComment.body}
           return;
         }
 
-        const comment = activeComment;
-
         const replyText = await vscode.window.showInputBox({
-          prompt: `Reply to comment by @${comment.user.login}`,
+          prompt: `Reply to comment by @${targetComment.user.login}`,
           placeHolder: "Enter your reply...",
           validateInput: (input) => {
             return input.trim().length === 0 ? "Reply cannot be empty" : null;
@@ -657,7 +833,7 @@ ${activeComment.body}
           await vscode.window.withProgress(
             {
               location: vscode.ProgressLocation.Notification,
-              title: `Replying to comment by @${comment.user.login}...`,
+              title: `Replying to comment by @${targetComment.user.login}...`,
               cancellable: false,
             },
             async (progress) => {
@@ -665,13 +841,13 @@ ${activeComment.body}
                 currentPRInfo!.owner,
                 currentPRInfo!.repo,
                 currentPRInfo!.number,
-                comment.id,
+                targetComment.id,
                 replyText.trim()
               );
 
               if (replyComment) {
                 vscode.window.showInformationMessage(
-                  `Reply posted to comment by @${comment.user.login}`
+                  `Reply posted to comment by @${targetComment.user.login}`
                 );
 
                 progress.report({ message: "Refreshing comments..." });
@@ -693,6 +869,158 @@ ${activeComment.body}
         }
       }
     ),
+
+    vscode.commands.registerCommand("gittron.startReviewMode", async () => {
+      if (!currentPRInfo) {
+        vscode.window.showErrorMessage(
+          "No PR information available. Please fetch PR comments first."
+        );
+        return;
+      }
+
+      // Get all unresolved threads
+      const threads = new Map<string, PullRequestComment[]>();
+      for (const comment of commentsProvider.getAllComments()) {
+        if (comment.threadId && !comment.resolved) {
+          const thread = threads.get(comment.threadId) || [];
+          thread.push(comment);
+          threads.set(comment.threadId, thread);
+        }
+      }
+
+      const threadArray = Array.from(threads.entries());
+      if (threadArray.length === 0) {
+        vscode.window.showInformationMessage("No unresolved comment threads to review.");
+        return;
+      }
+
+      // Start review mode
+      isReviewModeActive = true;
+      currentReviewIndex = 0;
+      vscode.commands.executeCommand('setContext', 'gittron:isReviewMode', true);
+
+      // Show review mode status bar item
+      const statusBarItem = vscode.window.createStatusBarItem(
+        vscode.StatusBarAlignment.Right,
+        100
+      );
+      statusBarItem.text = `$(comment-discussion) Review Mode: Thread ${currentReviewIndex + 1}/${threadArray.length}`;
+      statusBarItem.tooltip = "Click to exit review mode";
+      statusBarItem.command = 'gittron.exitReviewMode';
+      statusBarItem.show();
+
+      // Create quick pick items for navigation
+      const navigationButtons = [
+        {
+          label: "$(arrow-right) Next Thread",
+          description: "Move to the next comment thread",
+          action: "next"
+        },
+        {
+          label: "$(arrow-left) Previous Thread",
+          description: "Move to the previous comment thread",
+          action: "previous"
+        },
+        {
+          label: "$(check) Resolve Current Thread",
+          description: "Resolve the current thread and move to next",
+          action: "resolve"
+        },
+        {
+          label: "$(reply) Reply to Thread",
+          description: "Add a reply to the current thread",
+          action: "reply"
+        },
+        {
+          label: "$(close) Exit Review Mode",
+          description: "Exit the review mode",
+          action: "exit"
+        }
+      ];
+
+      // Show the first thread
+      await showThreadAtIndex(0, threadArray);
+
+      // Show the navigation quick pick
+      while (isReviewModeActive) {
+        const selection = await vscode.window.showQuickPick(navigationButtons, {
+          placeHolder: `Reviewing thread ${currentReviewIndex + 1} of ${threadArray.length}`,
+        });
+
+        if (!selection) {
+          continue;
+        }
+
+        switch (selection.action) {
+          case "next":
+            if (currentReviewIndex < threadArray.length - 1) {
+              currentReviewIndex++;
+              await showThreadAtIndex(currentReviewIndex, threadArray);
+              statusBarItem.text = `$(comment-discussion) Review Mode: Thread ${currentReviewIndex + 1}/${threadArray.length}`;
+            } else {
+              vscode.window.showInformationMessage("This is the last thread.");
+            }
+            break;
+
+          case "previous":
+            if (currentReviewIndex > 0) {
+              currentReviewIndex--;
+              await showThreadAtIndex(currentReviewIndex, threadArray);
+              statusBarItem.text = `$(comment-discussion) Review Mode: Thread ${currentReviewIndex + 1}/${threadArray.length}`;
+            } else {
+              vscode.window.showInformationMessage("This is the first thread.");
+            }
+            break;
+
+          case "resolve":
+            const [threadId, comments] = threadArray[currentReviewIndex];
+            const firstComment = comments[0];
+            await vscode.commands.executeCommand("gittron.resolveCommentFromHover", firstComment);
+            
+            // Refresh the thread array after resolution
+            threads.clear();
+            for (const comment of commentsProvider.getAllComments()) {
+              if (comment.threadId && !comment.resolved) {
+                const thread = threads.get(comment.threadId) || [];
+                thread.push(comment);
+                threads.set(comment.threadId, thread);
+              }
+            }
+            
+            const newThreadArray = Array.from(threads.entries());
+            if (newThreadArray.length === 0) {
+              vscode.window.showInformationMessage("All threads have been resolved! 🎉");
+              isReviewModeActive = false;
+              statusBarItem.dispose();
+              vscode.commands.executeCommand('setContext', 'gittron:isReviewMode', false);
+              break;
+            }
+
+            // Adjust current index if needed
+            currentReviewIndex = Math.min(currentReviewIndex, newThreadArray.length - 1);
+            await showThreadAtIndex(currentReviewIndex, newThreadArray);
+            statusBarItem.text = `$(comment-discussion) Review Mode: Thread ${currentReviewIndex + 1}/${newThreadArray.length}`;
+            break;
+
+          case "reply":
+            await vscode.commands.executeCommand("gittron.replyToCommentFromHover", threadArray[currentReviewIndex][1][0]);
+            break;
+
+          case "exit":
+            isReviewModeActive = false;
+            statusBarItem.dispose();
+            vscode.commands.executeCommand('setContext', 'gittron:isReviewMode', false);
+            vscode.window.showInformationMessage("Exited review mode.");
+            break;
+        }
+      }
+    }),
+
+    vscode.commands.registerCommand("gittron.exitReviewMode", () => {
+      isReviewModeActive = false;
+      vscode.commands.executeCommand('setContext', 'gittron:isReviewMode', false);
+      vscode.window.showInformationMessage("Exited review mode.");
+    })
   ];
 
   context.subscriptions.push(...commands, commentsTreeView);
