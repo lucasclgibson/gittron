@@ -1,0 +1,174 @@
+{
+  "name": "gittron",
+  "displayName": "gittron",
+  "description": "Automate PR reviews with AI assistance",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:gittron.helloWorld",
+    "onCommand:gittron.fetchPRComments",
+    "onCommand:gittron.setGitHubToken",
+    "onView:gittronComments",
+    "*"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "gittron.helloWorld",
+        "title": "Gittron: Hello World",
+        "icon": "$(globe)",
+        "category": "Gittron"
+      },
+      {
+        "command": "gittron.fetchPRComments",
+        "title": "Gittron: Fetch PR Comments",
+        "icon": "$(refresh)",
+        "category": "Gittron"
+      },
+      {
+        "command": "gittron.setGitHubToken",
+        "title": "Gittron: Set GitHub Token",
+        "icon": "$(key)",
+        "category": "Gittron"
+      },
+      {
+        "command": "gittron.toggleResolvedComments",
+        "title": "Gittron: Toggle Resolved Comments",
+        "icon": "$(eye)",
+        "category": "Gittron"
+      },
+      {
+        "command": "gittron.refreshComments",
+        "title": "Gittron: Refresh Comments",
+        "icon": "$(refresh)",
+        "category": "Gittron"
+      },
+      {
+        "command": "gittron.copyAsAgentInstruction",
+        "title": "Gittron: Copy as Agent Instruction",
+        "icon": "$(clippy)",
+        "category": "Gittron"
+      }
+    ],
+    "configuration": {
+      "title": "Gittron",
+      "properties": {
+        "gittron.githubToken": {
+          "type": "string",
+          "default": "",
+          "description": "GitHub Personal Access Token"
+        },
+        "gittron.includeResolvedComments": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include resolved comments when fetching PR comments"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gittron-sidebar",
+          "title": "Gittron",
+          "icon": "$(comment)"
+        }
+      ]
+    },
+    "views": {
+      "gittron-sidebar": [
+        {
+          "id": "gittronComments",
+          "name": "PR Comments",
+          "when": "true"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "gittron.refreshComments",
+          "when": "view == gittronComments",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gittron.toggleResolvedComments",
+          "when": "view == gittronComments",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gittron.setGitHubToken",
+          "when": "view == gittronComments",
+          "group": "navigation@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "gittron.helloWorld"
+        },
+        {
+          "command": "gittron.fetchPRComments"
+        },
+        {
+          "command": "gittron.setGitHubToken"
+        },
+        {
+          "command": "gittron.toggleResolvedComments"
+        },
+        {
+          "command": "gittron.refreshComments"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "gittron.setGitHubToken",
+        "key": "ctrl+shift+g t",
+        "mac": "cmd+shift+g t",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "gittron.fetchPRComments",
+        "key": "ctrl+shift+g p",
+        "mac": "cmd+shift+g p",
+        "when": "editorTextFocus"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.100.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.25.1",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.8.3",
+    "webpack": "^5.99.7",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "@octokit/rest": "^18.12.0",
+    "axios": "^1.9.0",
+    "simple-git": "^3.23.0"
+  }
+}
